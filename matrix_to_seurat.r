@@ -68,62 +68,95 @@ counts2 <- clean_data(count2)
 rm("count2")
 gc()
 
-counts1 <- counts1[rownames(counts1) %in% rownames(counts0), ]
-counts0 <- counts0[rownames(counts0) %in% rownames(counts1), ]
+# Function to find the intersection
+get_intersect <- function(sets, type = c("row", "col", "vector")) {
+  # This will throw an error if the type is not valid
+  type <- match.arg(type)
+  if (type == "row") {
+    sets <- lapply(sets, rownames)
+  } else if (type == "col") {
+    sets <- lapply(sets, colnames)
+  }
+  Reduce(intersect, sets)
+}
 
-all(rownames(counts1) %in% rownames(counts0))
-all(rownames(counts0) %in% rownames(counts1))
+# Function to extract and order elements based on the intersection
+extract_and_order <- function(original, intersection, type = c("row", "col", "vector")) {
+  type <- match.arg(type)
+  if (type == "row") {
+    rows <- rownames(original)
+    return(original[match(intersection, rows), ])
+  } else if (type == "col") {
+    cols <- colnames(original)
+    return(original[, match(intersection, cols)])
+  } else {
+    return(original[match(intersection, original)])
+  }
+}
 
-dim(counts1)
-dim(counts0)
+sets <- list(
+  ge = ge,
+  counts0 = counts0,
+  counts1 = counts1,
+  counts2 = counts2
+)
 
-any(duplicated(rownames(counts1)))
-any(duplicated(rownames(counts0)))
+inter_sect <- get_intersect(setsm, type = "row")
 
-duplicated <- rownames(counts0)[duplicated(rownames(counts0))]
+reordered_intersect <- lapply(
+  sets,
+  function(x) {
+    extract_and_order(
+      x,
+      inter_sect,
+      type = "row"
+    )
+  }
+)
 
-# Remove duplicated gene
-counts0 <- counts0[!rownames(counts0) %in% duplicated, ]
-counts1 <- counts1[!rownames(counts1) %in% duplicated, ]
+counts0 <- reordered_intersect$counts0
+counts1 <- reordered_intersect$counts1
+counts2 <- reordered_intersect$counts2
 
-ge <- ge[rownames(ge) %in% rownames(counts0), ]
-
-ge %>% rownames %>% head
-
-rownames(counts0)[order(match(rownames(counts0), rownames(ge)))] %>% head
-
-counts0 <- counts0[order(match(rownames(counts0), rownames(ge))), ]
-counts1 <- counts1[order(match(rownames(counts1), rownames(ge))), ]
-
-all(rownames(counts0) == rownames(counts1))
-
-counts0[1:10, 1:10]
-counts1[1:10, 1:10]
-
-cells_to_remove_0 <- c("leukocyte")
-
-counts0 <- counts0[, !colnames(counts0) %in% cells_to_remove]
-
-cells_to_remove_1 <- c("cell of skeletal muscle",
+cells_to_remove0 <- c(
+  "cell of skeletal muscle",
   "chondrocyte",
-  "Langerhans cell",
   "mast cell",
-  "natural killer cell",
   "plasma cell",
-  "plasmacytoid dendritic cell",
-  "smooth muscle cell"
+  "smooth muscle cell",
+  "Schwann cell"
 )
 
-old_new_counts_0 <- rbind(
-  c("skin fibroblast", "fibroblast")
+cells_to_remove1 <- c("leukocyte")
+
+cells_to_recove2 <- c(
+  "Schwann cell",
+  "plasma cell",
+  "mast cell"
 )
 
-old_new_counts_1 <- rbind(
+old_new_counts0 <- rbind(
   c("endothelial cell of lymphatic vessel", "endothelial cell"),
   c("endothelial cell of vascular tree", "endothelial cell"),
   c("suprabasal keratinocyte", "keratinocyte"),
   c("melanocyte of skin", "melanocyte"),
-  c("CD8-positive, alpha-beta memory T cell, CD45RO-positive", "memory T cell")
+  c("CD8-positive, alpha-beta memory T cell, CD45RO-positive", "memory T cell"),
+  c("basal cell of epidermis", "basal cell"),
+  c("plasmacytoid dendritic cell", "dendritic cell"),
+  c("conventional dendritic cell", "dendritic cell")
+)
+
+old_new_counts1 <- rbind(
+  c("skin fibroblast", "fibroblast")
+)
+
+old_new_counts2 <- rbind(
+  c("conventional dendritic cell", "dendritic cell"),
+  c("monocyte-derived dendritic cell", "dendritic cell"),
+  c("inflammatory macrophage", "macrophage"),
+  c("endothelial cell of vascular tree", "endothelial cell"),
+  c("endothelial cell of lymphatic vessel", "endothelial cell"),
+  c("skin fibroblast", "fibroblast")
 )
 
 rename_cell_types <- function(data, old_new) {
@@ -137,26 +170,20 @@ rename_cell_types <- function(data, old_new) {
 
 counts0 <- rename_cell_types(counts0, old_new_counts_0)
 counts1 <- rename_cell_types(counts1, old_new_counts_1)
-
-sum(rownames(counts1) %in% rownames(counts0))
-nrow(counts1)
-
-sum(rownames(counts0) %in% rownames(counts1))
-nrow(counts0)
-
-counts0 <- counts0[rownames(counts0) %in% rownames(counts1),]
-counts1 <- counts1[rownames(counts1) %in% rownames(counts0),]
-
-counts0 <- counts0[order(match(rownames(counts0),rownames(counts1))),]
-
-all(rownames(counts0) == rownames(counts1))
+counts2 <- rename_cell_types(counts2, old_new_counts_2)
 
 gc()
 
 # Assuming `sparse_matrix` is a sparse matrix (e.g., of class dgCMatrix)
 con <- file("scRNA_combined.txt", "w")
 
-col_names <- c("GeneSymbol", colnames(counts1), colnames(counts0))
+col_names <- c(
+  "GeneSymbol",
+  colnames(counts0),
+  colnames(counts1),
+  colnames(counts2)
+)
+
 col_names <- col_names |> as.matrix() |> t()
 write.table(col_names,
             con,
@@ -179,10 +206,11 @@ for (i in seq(1, n, by = chunk_size)) {
     )
   }
   end_row <-  min(i + chunk_size - 1, n)
+  dense_chunk0 <- as.matrix(counts0[i:end_row, , drop = FALSE])
   dense_chunk1 <- as.matrix(counts1[i:end_row, , drop = FALSE])
-  dense_chunk2 <- as.matrix(counts0[i:end_row, , drop = FALSE])
+  dense_chunk2 <- as.matrix(counts2[i:end_row, , drop = FALSE])
   # Convert one row at a time
-  dense_chunk <- cbind(dense_chunk1, dense_chunk2)
+  dense_chunk <- cbind(dense_chunk0, dense_chunk1, dense_chunk2)
   dense_chunk <- cbind.data.frame(GeneSymbol = rownames(counts1)[i:end_row],
                                   dense_chunk)
   write.table(dense_chunk,
