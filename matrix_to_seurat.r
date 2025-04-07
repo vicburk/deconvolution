@@ -200,8 +200,10 @@ gc()
 
 d <- ncol(counts1) + ncol(counts0)
 
+check <- any(rownames(counts1) != rownames(counts0) | any(rownames(counts1 != rownames(counts2))))
+
 for (i in seq(1, n, by = chunk_size)) {
-  if (any(rownames(counts1) != rownames(counts0))) {
+  if (check) {
     error(
     )
   }
