@@ -1,15 +1,16 @@
-source("packages.R")
-
-name <- "processed_data/subset_gene_expression.xlsx"
-subset_gene_expression <- read.xlsx(name) |> as.matrix()
-subset_gene_meta <- read.xlsx("processed_data/subset_gene_meta.xlsx")
-dictionary <- read.xlsx("processed_data/dictionary.xlsx")
-
-# Note, subject ID 54 is not in the protein dataset.
-rownames(subset_gene_expression) <- subset_gene_meta$SUBJECT_ID
-index <- which(rownames(subset_gene_expression) != "54")
-subset_gene_expression <- subset_gene_expression[index, ]
-subset_gene_meta <- subset_gene_meta[subset_gene_meta$SUBJECT_ID != "54", ]
+if (! file.exists("processed_data/dictionary.xlsx")) {
+  source("dictionary.R")
+  name <- "processed_data/subset_gene_expression.xlsx"
+  subset_gene_expression <- read.xlsx(name) |> as.matrix()
+  subset_gene_meta <- read.xlsx("processed_data/subset_gene_meta.xlsx")
+  dictionary <- read.xlsx("processed_data/dictionary.xlsx")
+} else {
+  source("packages.R")
+  name <- "processed_data/subset_gene_expression.xlsx"
+  subset_gene_expression <- read.xlsx(name) |> as.matrix()
+  subset_gene_meta <- read.xlsx("processed_data/subset_gene_meta.xlsx")
+  dictionary <- read.xlsx("processed_data/dictionary.xlsx")
+}
 
 # Filter probes to probes with known gene names.
 index <- colnames(subset_gene_expression) %in% dictionary$PROBE

@@ -49,7 +49,7 @@ options(future.globals.maxSize = 7 * 1024^3)
 
 name0 <- "5c9ab5a5-04a9-4282-9320-3b4d7b95131c"
 name1 <- "4d3469a7-339f-40b3-92a3-22f7043545f8"
-# name2 <- "26f6625b-e76c-490a-beb1-aea16933cd6d"
+name2 <- "26f6625b-e76c-490a-beb1-aea16933cd6d"
 
 count0 <- read_rds(name0)
 gc()
@@ -63,10 +63,10 @@ counts1 <- clean_data(count1)
 rm("count1")
 gc()
 
-# count2 <- read_rds(name2)
-# counts2 <- clean_data(count2)
-# rm("count2")
-# gc()
+count2 <- read_rds(name2)
+counts2 <- clean_data(count2)
+rm("count2")
+gc()
 
 counts1 <- counts1[rownames(counts1) %in% rownames(counts0), ]
 counts0 <- counts0[rownames(counts0) %in% rownames(counts1), ]

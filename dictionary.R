@@ -1,11 +1,13 @@
-
-source("packages.R")
+if (!file.exists("processed_data/gene_expression_clean.xlsx")) {
+  source("gene_cleaning.R")
+} else {
+  source("packages.R")
+  gene_expression <- read_xlsx("processed_data/gene_expression_clean.xlsx")
+}
 
 ################################
 # Map probes to gene symbols
 ################################
-
-gene.expression <- read_xlsx("processed_data/gene_expression_clean.xlsx")
 
 x = hgu219SYMBOL
 mapped_probes = mappedkeys(x)
