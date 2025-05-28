@@ -44,5 +44,13 @@ gene_expression_clean <- cbind(adult_gene, baby_gene)
 
 gene_expression_clean <- log2(gene_expression_clean)
 
+gene_expression <- gene_expression_clean
+
 write.xlsx(gene_expression_clean,
-           "processed_data/gene_expression_clean.xlsx")
+           "processed_data/gene_expression_clean.xlsx",
+           rowNames = TRUE)
+
+meta_gene %>% class
+
+write.xlsx(meta_gene,
+           "processed_data/gene_meta.xlsx")

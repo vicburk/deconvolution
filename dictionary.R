@@ -2,7 +2,8 @@ if (!file.exists("processed_data/gene_expression_clean.xlsx")) {
   source("gene_cleaning.R")
 } else {
   source("packages.R")
-  gene_expression <- read_xlsx("processed_data/gene_expression_clean.xlsx")
+  gene_expression <- read.xlsx("processed_data/gene_expression_clean.xlsx",
+                               rowNames = TRUE)
 }
 
 ################################
@@ -14,8 +15,7 @@ mapped_probes = mappedkeys(x)
 
 xx = as.list(x[mapped_probes])
 
-gene.symbols = unlist(xx[names(xx) %in% gene.expression$probeset_id])
-gene.symbols
+gene.symbols = unlist(xx[names(xx) %in% rownames(gene_expression)])
 
 ##################################
 # Map probes to entrez ID
@@ -26,9 +26,9 @@ mapped_probesy = mappedkeys(y)
 
 yy = as.list(y[mapped_probesy])
 
-length(unlist(yy[names(yy) %in% gene.expression$probeset_id]))
+length(unlist(yy[names(yy) %in% rownames(gene_expression)]))
 
-gene.entrez = unlist(yy[names(yy) %in% gene.expression$probeset_id])
+gene.entrez = unlist(yy[names(yy) %in% rownames(gene_expression)])
 
 length(gene.entrez)
 length(gene.symbols)
@@ -39,11 +39,11 @@ length(gene.symbols)
 # Which probes were unidentified?
 ##################################
 
-uig = gene.expression$probeset_id[!gene.expression$probeset_id %in% names(xx)]
+uig = rownames(gene_expression)[!rownames(gene_expression) %in% names(xx)]
 
 uig
 
-nrow(gene.expression)
+nrow(gene_expression)
 length(xx)
 
 ##################################
@@ -233,10 +233,10 @@ colnames(gene.entrez.symbol4) = c("SYMBOL","ENTREZID","PROBE")
 gene.entrez.symbol.all = rbind(gene.entrez.symbol,gene.entrez.symbol4)
 
 dim(gene.entrez.symbol.all)
-dim(gene.expression)
+dim(gene_expression)
 
 # Only 617 probes were unidentified
-nrow(gene.expression) - nrow(gene.entrez.symbol.all)
+nrow(gene_expression) - nrow(gene.entrez.symbol.all)
 
 gene.entrez.symbol.all = gene.entrez.symbol.all[,c(3,1,2)]
 

@@ -5,11 +5,14 @@ library(dplyr)
 library(EnsDb.Hsapiens.v79)
 source("gene_expression_pipeline.R")
 
+dictionary <- read.xlsx("processed_data/dictionary.xlsx")
+
 ge <- 2^gene_exp
-ge <- rownames(ge)
 
 rm(list = ls()[which(ls() != "ge")])
 gc()
+
+remove_rename <- rjson::fromJSON(file = "remove_rename.json")
 
 read_rds <- function(name) {
   if (!file.exists(paste0(name, ".rds"))) {
@@ -41,31 +44,20 @@ clean_data <- function(rds) {
   colnames(counts) <- cell_types
   counts <- counts[rowSums(counts) > 0, ]
   counts <- counts[, colSums(counts) > 0]
-  counts <- counts[rownames(counts) %in% ge, ]
+  counts <- counts[rownames(counts) %in% rownames(ge), ]
   return(counts)
 }
 
 options(future.globals.maxSize = 7 * 1024^3)
 
-name0 <- "5c9ab5a5-04a9-4282-9320-3b4d7b95131c"
-name1 <- "4d3469a7-339f-40b3-92a3-22f7043545f8"
-name2 <- "26f6625b-e76c-490a-beb1-aea16933cd6d"
+counts <- list()
+for (i in seq_along(remove_rename)) {
+  name <- remove_rename[[i]]$name
+  count <- read_rds(name)
+  counts[[name]] <- clean_data(count)
+}
 
-count0 <- read_rds(name0)
-gc()
-counts0 <- clean_data(count0)
-
-rm("count0")
-gc()
-
-count1 <- read_rds(name1)
-counts1 <- clean_data(count1)
-rm("count1")
-gc()
-
-count2 <- read_rds(name2)
-counts2 <- clean_data(count2)
-rm("count2")
+rm("count")
 gc()
 
 # Function to find the intersection
@@ -94,138 +86,187 @@ extract_and_order <- function(original, intersection, type = c("row", "col", "ve
   }
 }
 
-sets <- list(
-  ge = ge,
-  counts0 = counts0,
-  counts1 = counts1,
-  counts2 = counts2
-)
+counts[["ge"]] <- ge
 
-inter_sect <- get_intersect(setsm, type = "row")
+inter_sect <- get_intersect(counts, type = "row")
 
 reordered_intersect <- lapply(
-  sets,
+  seq_along(counts),
   function(x) {
     extract_and_order(
-      x,
+      counts[[x]],
       inter_sect,
       type = "row"
     )
   }
 )
 
-counts0 <- reordered_intersect$counts0
-counts1 <- reordered_intersect$counts1
-counts2 <- reordered_intersect$counts2
+names(reordered_intersect) <- names(counts)
 
-cells_to_remove0 <- c(
-  "cell of skeletal muscle",
-  "chondrocyte",
-  "mast cell",
-  "plasma cell",
-  "smooth muscle cell",
-  "Schwann cell"
-)
-
-cells_to_remove1 <- c("leukocyte")
-
-cells_to_recove2 <- c(
-  "Schwann cell",
-  "plasma cell",
-  "mast cell"
-)
-
-old_new_counts0 <- rbind(
-  c("endothelial cell of lymphatic vessel", "endothelial cell"),
-  c("endothelial cell of vascular tree", "endothelial cell"),
-  c("suprabasal keratinocyte", "keratinocyte"),
-  c("melanocyte of skin", "melanocyte"),
-  c("CD8-positive, alpha-beta memory T cell, CD45RO-positive", "memory T cell"),
-  c("basal cell of epidermis", "basal cell"),
-  c("plasmacytoid dendritic cell", "dendritic cell"),
-  c("conventional dendritic cell", "dendritic cell")
-)
-
-old_new_counts1 <- rbind(
-  c("skin fibroblast", "fibroblast")
-)
-
-old_new_counts2 <- rbind(
-  c("conventional dendritic cell", "dendritic cell"),
-  c("monocyte-derived dendritic cell", "dendritic cell"),
-  c("inflammatory macrophage", "macrophage"),
-  c("endothelial cell of vascular tree", "endothelial cell"),
-  c("endothelial cell of lymphatic vessel", "endothelial cell"),
-  c("skin fibroblast", "fibroblast")
-)
-
-rename_cell_types <- function(data, old_new) {
-  for (i in seq_len(nrow(old_new))) {
-    colnames(data) <- data %>%
-      colnames() %>%
-      gsub(old_new[i, 1], old_new[i, 2], x = .)
+rename_cell_types <- function(data, rename) {
+  renamed_data <- list()
+  for (i in seq_along(rename)) {
+    name <- rename[[i]]$name
+    dataframe <- data[[name]]
+    for (j in seq_along(rename[[i]]$rename)) {
+      original <- names(rename[[i]]$rename)[j]
+      new <- rename[[i]]$rename[[j]]
+      colnames(dataframe) <- dataframe %>%
+        colnames() %>%
+        gsub(original, new, x = .)
+    }
+    renamed_data[[name]] <- dataframe
   }
-  return(data)
+  return(renamed_data)
 }
 
-counts0 <- rename_cell_types(counts0, old_new_counts_0)
-counts1 <- rename_cell_types(counts1, old_new_counts_1)
-counts2 <- rename_cell_types(counts2, old_new_counts_2)
+renamed_data <- rename_cell_types(reordered_intersect, remove_rename)
+
+# Check if all rownames are equal
+rn <- lapply(renamed_data, rownames)
+all(sapply(rn, identical, rn[[1]]))
 
 gc()
 
-# Assuming `sparse_matrix` is a sparse matrix (e.g., of class dgCMatrix)
-con <- file("scRNA_combined.txt", "w")
+# Downsampling
 
-col_names <- c(
-  "GeneSymbol",
-  colnames(counts0),
-  colnames(counts1),
-  colnames(counts2)
-)
-
-col_names <- col_names |> as.matrix() |> t()
-write.table(col_names,
-            con,
-            row.names = FALSE,
-            col.names = FALSE,
-            append = TRUE,
-            quote = FALSE,
-            sep = "\t")
-
-n <-  nrow(counts1)
-chunk_size <- 500
-
-gc()
-
-d <- ncol(counts1) + ncol(counts0)
-
-check <- any(rownames(counts1) != rownames(counts0) | any(rownames(counts1 != rownames(counts2))))
-
-for (i in seq(1, n, by = chunk_size)) {
-  if (check) {
-    error(
-    )
+downsample <- function(data, n) {
+  cell_types <- lapply(data, colnames) %>% unlist
+  cell_types_unique <- cell_types %>%
+    unique
+  downsample_index <- NULL
+  for (i in seq_along(cell_types_unique)) {
+    index <- which(cell_types == cell_types_unique[i])
+    if (length(index) >= n) {
+      index <- sample(index, n)
+      downsample_index <- c(downsample_index, index)
+    }
   }
-  end_row <-  min(i + chunk_size - 1, n)
-  dense_chunk0 <- as.matrix(counts0[i:end_row, , drop = FALSE])
-  dense_chunk1 <- as.matrix(counts1[i:end_row, , drop = FALSE])
-  dense_chunk2 <- as.matrix(counts2[i:end_row, , drop = FALSE])
-  # Convert one row at a time
-  dense_chunk <- cbind(dense_chunk0, dense_chunk1, dense_chunk2)
-  dense_chunk <- cbind.data.frame(GeneSymbol = rownames(counts1)[i:end_row],
-                                  dense_chunk)
-  write.table(dense_chunk,
-              con,
-              row.names = FALSE,
-              col.names = FALSE,
-              append = TRUE,
-              quote = FALSE,
-              sep = "\t")
-  gc()
-  if (i %% d / chunk_size / 10 == 0) {
-    cat("*", sep = "")
+  lengths <- lapply(data, ncol)
+  cutoffs <- NULL
+  init <- 0
+  for (i in seq_along(lengths)) {
+    init <- init + lengths[[i]]
+    cutoffs <- c(cutoffs, init)
+  }
+  index_split <- NULL
+  copy <- downsample_index
+  for (i in seq_along(cutoffs)) {
+    temp <- copy - cutoffs[i]
+    id <- which(temp <= 0)
+    if (i == 1) {
+      index_split[[i]] <- copy[id]
+      copy <- copy[-id]
+    } else {
+      new_id <- copy[id] - cutoffs[i - 1]
+      index_split[[i]] <- new_id
+      copy <- copy[-id]
+    }
+  }
+  return(index_split)
+}
+
+idex <- downsample(renamed_data, 500)
+
+lengths <- lapply(renamed_data, ncol)
+
+cutoffs <- NULL
+init <- 0
+for (i in seq_along(lengths)) {
+  init <- init + lengths[[i]]
+  cutoffs <- c(cutoffs, init)
+}
+
+index_split <- NULL
+copy <- index
+for (i in seq_along(cutoffs)) {
+  temp <- copy - cutoffs[i]
+  id <- which(temp <= 0)
+  if (i == 1) {
+    index_split[[i]] <- copy[id]
+    copy <- copy[-id]
+  } else {
+    new_id <- copy[id] - cutoffs[i - 1]
+    index_split[[i]] <- new_id
+    copy <- copy[-id]
   }
 }
 
-close(con)
+n <- 500
+
+index <- downsample(renamed_data, n)
+
+save_matrix <- function(data, file, chunk_size, downsample_n) {
+  con <- file(file, "w")
+  index <- downsample(data, downsample_n)
+  col_names <- lapply(
+    seq_along(data),
+    function(x) {
+      colnames(data[[x]])[index[[x]]]
+    }
+  )
+  col_names <- unlist(col_names)
+  col_names <- c("GeneSymbol", col_names)
+  col_names <- col_names %>% as.matrix() %>% t()
+  write.table(
+    col_names,
+    con,
+    row.names = FALSE,
+    col.names = FALSE,
+    append = TRUE,
+    quote = FALSE,
+    sep = "\t"
+  )
+  d <- lapply(data, rownames)
+  check <- all(sapply(d, identical, d[[1]]))
+  if (check == FALSE) {
+    stop("Row names are not equal")
+  }
+  n <- nrow(data[[1]])
+  for (i in seq(1, n, by = chunk_size)) {
+    end_row <-  min(i + chunk_size - 1, n)
+    dense_chunk <- NULL
+    for (j in seq_along(data)) {
+      dense_chunk[[j]] <- as.matrix(
+        data[[j]][i:end_row,
+        index[[j]],
+        drop = FALSE]
+      )
+    }
+    dense_chunk <- Reduce(cbind, dense_chunk)
+    # Convert one row at a time
+    dense_chunk <- cbind.data.frame(GeneSymbol = rownames(data[[1]])[i:end_row],
+                                    dense_chunk)
+    write.table(dense_chunk,
+                con,
+                row.names = FALSE,
+                col.names = FALSE,
+                append = TRUE,
+                quote = FALSE,
+                sep = "\t")
+  }
+  close(con)
+}
+
+save_matrix(
+  data = renamed_data,
+  file = "scRNA_combined_500.txt",
+  chunk_size = 500,
+  downsample_n = 100
+)
+
+sample_sizes <- c(
+  500,
+  1000,
+  1500,
+  2000
+)
+
+for (i in seq_along(sample_sizes)) {
+  save_matrix(
+    data = renamed_data,
+    file = paste0("scRNA_combined_", sample_sizes[i], ".txt"),
+    chunk_size = 500,
+    downsample_n = sample_sizes[i]
+  )
+}

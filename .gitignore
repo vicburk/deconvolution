@@ -172,3 +172,12 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Project
+matrix_files/
+output_*/
+processed_data/*
+*.h5ad
+*.rds
+gene_expression.txt
+scRNA_combined*

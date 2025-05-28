@@ -1,0 +1,46 @@
+[
+    {
+        "name": "4d3469a7-339f-40b3-92a3-22f7043545f8",
+        "remove": ["leukocyte"],
+        "rename": {
+            "skin fibroblast": "fibroblast"
+        }
+    },
+    {
+        "name": "26f6625b-e76c-490a-beb1-aea16933cd6d",
+        "remove": [
+            "Schwann cell",
+            "plasma cell",
+            "mast cell"
+        ],
+        "rename": {
+            "conventional dendritic cell": "dendritic cell",
+            "monocyte-derived dendritic cell": "dendritic cell",
+            "inflammatory macrophage": "macrophage",
+            "endothelial cell of vascular tree": "endothelial cell",
+            "endothelial cell of lymphatic vessel": "endothelial cell",
+            "skin fibroblast": "fibroblast"
+        }
+    },
+    {
+        "name": "5c9ab5a5-04a9-4282-9320-3b4d7b95131c",
+        "remove": [
+            "cell of skeletal muscle",
+            "chondrocyte",
+            "mast cell",
+            "plasma cell",
+            "smooth muscle cell",
+            "Schwann cell"
+        ],
+        "rename": {
+            "endothelial cell of lymphatic vessel": "endothelial cell",
+            "endothelial cell of vascular tree": "endothelial cell",
+            "suprabasal keratinocyte": "keratinocyte",
+            "melanocyte of skin": "melanocyte",
+            "CD8-positive, alpha-beta memory T cell, CD45RO-positive": "memory T cell",
+            "basal cell of epidermis": "basal cell",
+            "plasmacytoid dendritic cell": "dendritic cell",
+            "conventional dendritic cell": "dendritic cell"
+        }
+    }
+]

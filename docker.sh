@@ -1,59 +1,19 @@
 #!/bin/bash
 
-# Install Docker (if not already installed)
-if ! command -v docker &> /dev/null
-then
-  echo "Docker is not installed. Installing..."
-  curl -fsSL https://get.docker.com -o get-docker.sh
-  sudo sh get-docker.sh
-  rm get-docker.sh
-  echo "Docker installed successfully."
+#!/bin/bash
+
+if ! command -v parallel &> /dev/null; then
+  echo "parallel is not installed, installing..."
+  if [ -x "$(command -v apt-get)" ]; then
+    sudo apt-get update && sudo apt-get install -y parallel
+  elif [ -x "$(command -v yum)" ]; then
+    sudo yum install -y parallel
+  elif [ -x "$(command -v brew)" ]; then
+    brew install parallel
+  else
+    echo "Unsupported Linux distribution"
+    exit 1
+  fi
 fi
 
-
-# Pull the CIBERSORTx Docker image
-echo "Pulling cibersortx/fractions Docker image..."
-docker pull cibersortx/fractions
-echo "Docker image pulled successfully."
-
-
-# Get user credentials securely
-read -r -s -p "Enter your CIBERSORTx username: " username
-echo ""
-read -r -s -p "Enter your CIBERSORTx token: " token
-echo ""
-
-
-# Clone the repository (if needed - adapt this part if you have a different way of getting the input files)
-# Example:
-# git clone <repository_url> cibersortx_data
-# cd cibersortx_data
-
-
-# Get input and output directory paths
-read -r -p "Enter the absolute path to the input directory: " input_dir
-read -r -p "Enter the absolute path to the output directory: " output_dir
-
-
-# Validate input - Check if directories exist
-if [[ ! -d "$input_dir" ]]; then
-  echo "Error: Input directory '$input_dir' does not exist."
-  exit 1
-fi
-
-if [[ ! -d "$output_dir" ]]; then
-  echo "Error: Output directory '$output_dir' does not exist."
-  exit 1
-fi
-
-
-
-# Run CIBERSORTx Fractions (example command - adapt as needed)
-docker run -v "$input_dir":/src/data -v "$output_dir":/src/outdir cibersortx/fractions \
-  --username "$username" --token "$token" \
-  --single_cell TRUE \
-  --refsample /src/data/Fig2ab-NSCLC_PBMCs_scRNAseq_refsample.txt \  # Make sure these paths are correct relative to the input directory
-  --mixture /src/data/Fig2b-WholeBlood_RNAseq.txt \                 # Make sure these paths are correct relative to the input directory
-  --fraction 0 --rmbatchSmode TRUE
-
-echo "CIBERSORTx Fractions execution completed." 
+parallel --jobs 4 "mkdir -p /home/vibu/deconvolution/output_{}; docker run -v /home/vibu/deconvolution:/src/data -v /home/vibu/deconvolution/output_{}:/src/outdir cibersortx/fractions --username burklovt@mail.uc.edu --token 55cf29498748253a278dbbb834eec37f --single_cell TRUE --refsample scRNA_combined_{}.txt --mixture gene_expression.txt --fraction 0 --rmbatchSmode TRUE" ::: 500 1000 1500 2000
