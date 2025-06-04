@@ -166,36 +166,6 @@ downsample <- function(data, n) {
   return(index_split)
 }
 
-idex <- downsample(renamed_data, 500)
-
-lengths <- lapply(renamed_data, ncol)
-
-cutoffs <- NULL
-init <- 0
-for (i in seq_along(lengths)) {
-  init <- init + lengths[[i]]
-  cutoffs <- c(cutoffs, init)
-}
-
-index_split <- NULL
-copy <- index
-for (i in seq_along(cutoffs)) {
-  temp <- copy - cutoffs[i]
-  id <- which(temp <= 0)
-  if (i == 1) {
-    index_split[[i]] <- copy[id]
-    copy <- copy[-id]
-  } else {
-    new_id <- copy[id] - cutoffs[i - 1]
-    index_split[[i]] <- new_id
-    copy <- copy[-id]
-  }
-}
-
-n <- 500
-
-index <- downsample(renamed_data, n)
-
 save_matrix <- function(data, file, chunk_size, downsample_n) {
   con <- file(file, "w")
   index <- downsample(data, downsample_n)
@@ -248,18 +218,14 @@ save_matrix <- function(data, file, chunk_size, downsample_n) {
   close(con)
 }
 
-save_matrix(
-  data = renamed_data,
-  file = "scRNA_combined_500.txt",
-  chunk_size = 500,
-  downsample_n = 100
-)
-
 sample_sizes <- c(
   500,
   1000,
   1500,
-  2000
+  2000,
+  2500,
+  3000,
+  3500
 )
 
 for (i in seq_along(sample_sizes)) {
