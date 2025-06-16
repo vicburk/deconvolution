@@ -166,7 +166,13 @@ downsample <- function(data, n) {
   return(index_split)
 }
 
-save_matrix <- function(data, file, chunk_size, downsample_n) {
+save_matrix <- function(
+  data,
+  file,
+  chunk_size,
+  downsample_n,
+  pseudobulk = FALSE
+) {
   con <- file(file, "w")
   index <- downsample(data, downsample_n)
   col_names <- lapply(
@@ -216,17 +222,34 @@ save_matrix <- function(data, file, chunk_size, downsample_n) {
                 sep = "\t")
   }
   close(con)
+  if (pseudobulk == TRUE) {
+    cells <- lapply(
+      seq_along(data),
+      function(x) {
+        colnames(data[[x]])[-index[[x]]]
+      }
+    )
+    cells <- unlist(cells)
+    cells <- unique(cells)
+    newdata <- NULL
+    for (i in seq_along(cells)) {
+      tempdata <- NULL
+      for (j in seq_along(data)) {
+        index <- which(colnames(data[[j]]) == cells[i])
+        temp <- data[[j]][, index]
+        cbind(tempdata, temp)
+      }
+      tempdata <- rowSums(tempdata)
+      newdata <- cbind(newdata, tempdata)
+    }
+    colnames(newdata) <- cells
+    pseudo <- newdata/rowSums(newdata)*1e6
+    pseudo <- log2(pseudo + 1)
+    return(pseudo)
+  }
 }
 
-sample_sizes <- c(
-  500,
-  1000,
-  1500,
-  2000,
-  2500,
-  3000,
-  3500
-)
+sample_sizes <- scan("sample_size.txt")
 
 for (i in seq_along(sample_sizes)) {
   save_matrix(
@@ -236,3 +259,11 @@ for (i in seq_along(sample_sizes)) {
     downsample_n = sample_sizes[i]
   )
 }
+
+save_matrix(
+  data = renamed_data,
+  file = "scRNA_combined_2000.txt",
+  chunk_size = 500,
+  downsample_n = 2000,
+  pseudobulk = TRUE
+)

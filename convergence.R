@@ -21,19 +21,35 @@ column_names  <- lapply(
   nlines = 1
 )
 
+# Extract numeric values from files
+
+values <- gsub("[^0-9]", "", files)
+values <- as.numeric(values)
+
+names(data) <- values
+
+names(column_names) <- values
+
 row_names <- lapply(seq_along(data), function(x) data[[x]][, 1])
 
 ######################################
 # Clean data
 ######################################
 
-for (i in seq_along(data)) {
-  names(data[[i]]) <- column_names[[i]]
-  n <- ncol(data[[i]])
-  data[[i]] <- data[[i]][, -seq(n-2, n)]
-  data[[i]] <- data[[i]][, -1]
-  nonzero <- colSums(data[[i]]) != 0
-  data[[i]] <- data[[i]][, nonzero]
+neworder <- data %>%
+  names %>%
+  as.numeric() %>%
+  sort() %>%
+  as.character()
+
+for (i in seq_along(neworder)) {
+  index <- neworder[i]
+  names(data[index][[1]]) <- column_names[index][[1]]
+  n <- ncol(data[index][[1]])
+  data[index][[1]] <- data[index][[1]][, -seq(n-2, n)]
+  data[index][[1]] <- data[index][[1]][, -1]
+  nonzero <- colSums(data[index][[1]]) != 0
+  data[index][[1]] <- data[index][[1]][, nonzero]
 }
 
 # Get cell types that are in all datasets
@@ -50,21 +66,23 @@ for (i in seq_along(data)) {
 
 corr <- list()
 for (i in seq_along(data)[- length(data)]) {
-  flatten0 <- unlist(data[[i]])
-  flatten1 <- unlist(data[[i + 1]])
-  corr[[i]] <- cor(flatten0, flatten1, method = "spearman")
+  flatten0 <- unlist(data[neworder[i]][[1]])
+  flatten1 <- unlist(data[neworder[i + 1]][[1]])
+  title <- paste(neworder[i], neworder[i + 1],sep = "-")
+  corr[title] <- cor(flatten0, flatten1, method = "spearman")
 }
 
 patient_wise <- list()
 for (i in seq_along(data)[-length(data)]) {
   corrs <- NULL
   for (j in seq_len(nrow(data[[i]]))) {
-    v0 <- unlist(data[[i]][j, ])
-    v1 <- unlist(data[[i + 1]][j, ])
+    v0 <- unlist(data[neworder[i]][[1]][j, ])
+    v1 <- unlist(data[neworder[i + 1]][[1]][j, ])
     coR <- cor(v0, v1, method = "spearman")
     corrs <- append(corrs, coR)
   }
-  patient_wise[[i]] <- cbind(
+  title <- paste(neworder[i], neworder[i + 1],sep = "-")
+  patient_wise[[title]] <- cbind(
     mean = mean(corrs),
     std = sd(corrs)
   )
@@ -74,12 +92,13 @@ cell_wise <- list()
 for (i in seq_along(data)[-length(data)]) {
   corrs <- NULL
   for (j in seq_len(ncol(data[[i]]))) {
-    v0 <- unlist(data[[i]][, j])
-    v1 <- unlist(data[[i + 1]][, j])
+    v0 <- unlist(data[neworder[i]][[1]][, j])
+    v1 <- unlist(data[neworder[i + 1]][[1]][, j])
     coR <- cor(v0, v1, method = "spearman")
     corrs <- append(corrs, coR)
   }
-  cell_wise[[i]] <- cbind(
+  title <- paste(neworder[i], neworder[i + 1],sep = "-") 
+  cell_wise[[title]] <- cbind(
     mean = mean(corrs),
     std = sd(corrs)
   )

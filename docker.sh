@@ -1,6 +1,18 @@
 #!/bin/bash
 
-#!/bin/bash
+# Input file with values
+INPUT_FILE="sample_sizes.txt"
+
+# Check if input file exists
+if [ ! -f "$INPUT_FILE" ]; then
+  echo "Input file $INPUT_FILE not found"
+  exit 1
+fi
+
+# Prompt for username and token
+read -p "Enter CibersortX username: " USERNAME
+read -sp "Enter CibersortX token: " TOKEN
+echo # new line after token input
 
 if ! command -v parallel &>/dev/null; then
   echo "parallel is not installed, installing..."
@@ -16,5 +28,4 @@ if ! command -v parallel &>/dev/null; then
   fi
 fi
 
-parallel --jobs 4 "mkdir -p /home/vibu/deconvolution/output_{}; docker run -v /home/vibu/deconvolution:/src/data -v /home/vibu/deconvolution/output_{}:/src/outdir cibersortx/fractions --username burklovt@mail.uc.edu --token 55cf29498748253a278dbbb834eec37f --single_cell TRUE --refsample scRNA_combined_{}.txt --mixture gene_expression.txt --fraction 0 --rmbatchSmode TRUE" ::: 500 1000 1500 2000 2500 3000 3500
-
+parallel --jobs 4 "mkdir -p /home/vibu/deconvolution/output_{}; docker run -v /home/vibu/deconvolution:/src/data -v /home/vibu/deconvolution/output_{}:/src/outdir cibersortx/fractions --username $USERNAME --token $TOKEN --single_cell TRUE --refsample scRNA_combined_{}.txt --mixture gene_expression.txt --fraction 0 --rmbatchSmode TRUE" <"$INPUT_FILE"
