@@ -249,13 +249,13 @@ save_matrix <- function(
     pseudo <- cbind.data.frame(GeneSymbol = row_names,
                                pseudo = pseudo)
     write.table(pseudo,
-                file = paste0("pseudobulk_", downsample_n,".txt"),
+                file = paste0("pseudobulk_", file, "_", downsample_n,".txt"),
                 row.names = FALSE,
                 col.names = TRUE,
                 quote = FALSE,
                 sep = "\t")
     true_prop <- write.table(true_prop,
-                file = paste0("true_proportions_", downsample_n,".txt"),
+                file = paste0("true_proportions_", file, "_", downsample_n,".txt"),
                 row.names = FALSE,
                 col.names = FALSE,
                 quote = FALSE,
@@ -335,4 +335,57 @@ save_matrix(
   pseudobulk = TRUE
 )
 
+#######################################
+### Without 26f6625b-e76c-490a-beb1-aea16933cd6d
+#######################################
 
+counts2 <- list()
+for (i in seq_along(counts)) {
+  if (names(counts)[i] != "26f6625b-e76c-490a-beb1-aea16933cd6d") {
+    counts2[names(counts)[i]] <- list(counts[[i]])
+  } else {
+    next
+  }
+}
+
+remove_rename2 <- list()
+k <- 1
+for (i in seq_along(remove_rename)) {
+  if (remove_rename[[i]]$name != "26f6625b-e76c-490a-beb1-aea16933cd6d") {
+    remove_rename2[[k]] <- remove_rename[[i]]
+    k <- k + 1
+  } else {
+    next
+  }
+}
+
+inter_sect2 <- get_intersect(counts2, type = "row")
+
+reordered_intersect2 <- lapply(
+  seq_along(counts2),
+  function(x) {
+    extract_and_order(
+      counts2[[x]],
+      inter_sect2,
+      type = "row"
+    )
+  }
+)
+
+names(reordered_intersect2) <- names(counts2)
+
+renamed_data2 <- rename_cell_types(reordered_intersect2, remove_rename2)
+
+# Check if all rownames are equal
+rn <- lapply(renamed_data2, rownames)
+all(sapply(rn, identical, rn[[1]]))
+
+gc()
+
+save_matrix(
+  data = renamed_data2,
+  file = "scRNA_combined2_2000.txt",
+  chunk_size = 500,
+  downsample_n = 2000,
+  pseudobulk = TRUE
+)
