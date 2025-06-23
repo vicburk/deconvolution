@@ -45,20 +45,18 @@ names(true_proportions) <- c(
 estimated_proportions
 true_proportions
 
-match(
-  estimated_proportions$cell_types,
-  true_proportions$cell_type
-)
-
-estimated_proportions$cell_types
-true_proportions$cell_type
-
-true_proportions <- true_proportions[match(
-  estimated_proportions$cell_types,
-  true_proportions$cell_type
+estimated_proportions <- estimated_proportions[match(
+  true_proportions$cell_type,
+  estimated_proportions$cell_types
 ), ]
 
-cbind.data.frame(
-  estimated_proportions,
-  true_proportions = true_proportions$true_proportion
+proportions  <- cbind.data.frame(
+  true_proportions,
+  estimated_proportions = estimated_proportions$estimated_proportions
 )
+
+proportions <- proportions[order(
+  proportions$true_proportion,
+  decreasing = TRUE
+), ]
+proportions
