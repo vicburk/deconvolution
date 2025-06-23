@@ -195,7 +195,7 @@ save_matrix <- function(
   )
   d <- lapply(data, rownames)
   check <- all(sapply(d, identical, d[[1]]))
-  if (check == FALSE) {
+  if (check == FALSE) { 
     stop("Row names are not equal")
   }
   n <- nrow(data[[1]])
@@ -277,6 +277,59 @@ for (i in seq_along(sample_sizes)) {
 save_matrix(
   data = renamed_data,
   file = "scRNA_combined_2000.txt",
+  chunk_size = 500,
+  downsample_n = 2000,
+  pseudobulk = TRUE
+)
+
+##############################
+### Without 5c9ab5a5-04a9-4282-9320-3b4d7b95131c
+##############################
+
+counts1 <- list()
+for (i in seq_along(counts)) {
+  if (names(counts)[i] != "5c9ab5a5-04a9-4282-9320-3b4d7b95131c") {
+    counts1[names(counts)[i]] <- list(counts[[i]])
+  } else {
+    next
+  }
+}
+
+remove_rename1 <- list()
+for (i in seq_along(remove_rename)) {
+  if (remove_rename[[i]]$name != "5c9ab5a5-04a9-4282-9320-3b4d7b95131c") {
+    remove_rename1[[i]] <- remove_rename[[i]]
+  } else {
+    next
+  }
+}
+
+inter_sect1 <- get_intersect(counts1, type = "row")
+
+reordered_intersect1 <- lapply(
+  seq_along(counts1),
+  function(x) {
+    extract_and_order(
+      counts1[[x]],
+      inter_sect1,
+      type = "row"
+    )
+  }
+)
+
+names(reordered_intersect1) <- names(counts1)
+
+renamed_data1 <- rename_cell_types(reordered_intersect1, remove_rename1)
+
+# Check if all rownames are equal
+rn <- lapply(renamed_data1, rownames)
+all(sapply(rn, identical, rn[[1]]))
+
+gc()
+
+save_matrix(
+  data = renamed_data1,
+  file = "scRNA_combined1_2000.txt",
   chunk_size = 500,
   downsample_n = 2000,
   pseudobulk = TRUE
