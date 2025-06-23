@@ -1,46 +1,64 @@
 headers <- scan(
-  "output_5c9ab5a5-04a9-4282-9320-3b4d7b95131c/CIBERSORTx_Adjusted.txt",
+  "pseudo_output2_2000/CIBERSORTx_Results.txt",
   sep = "\t",
   what = "character",
   nlines = 1
 )
+
 pseudo_bulk <- read.table(
-  "output_5c9ab5a5-04a9-4282-9320-3b4d7b95131c/CIBERSORTx_Adjusted.txt",
+  "pseudo_output2_2000/CIBERSORTx_Results.txt",
   sep = "\t",
   skip = 1
 )
 
-colnames(pseudo_bulk) <- headers
+names(pseudo_bulk) <- headers
 
-headers1 <- scan(
-  "output_26f6625b-e76c-490a-beb1-aea16933cd6d/CIBERSORTx_Adjusted.txt",
-  sep = "\t",
-  what = "character",
-  nlines = 1
-)
-pseudo_bulk1 <- read.table(
-  "output_26f6625b-e76c-490a-beb1-aea16933cd6d/CIBERSORTx_Adjusted.txt",
-  sep = "\t",
-  skip = 1
+remove <- c(
+  1,
+  seq(
+    ncol(pseudo_bulk) - 2,
+    ncol(pseudo_bulk)
+  )
 )
 
-colnames(pseudo_bulk1) <- headers1
+pseudo_bulk <- pseudo_bulk[, -remove]
+pseudo_bulk <- unlist(pseudo_bulk)
 
-headers2 <- scan(
-  "output_4d3469a7-339f-40b3-92a3-22f7043545f8/CIBERSORTx_Adjusted.txt",
-  sep = "\t",
-  what = "character",
-  nlines = 1
+
+estimated_proportions <- cbind.data.frame(
+  cell_types = names(pseudo_bulk),
+  estimated_proportions = pseudo_bulk
 )
 
-pseudo_bulk2 <- read.table(
-  "output_4d3469a7-339f-40b3-92a3-22f7043545f8/CIBERSORTx_Adjusted.txt",
-  sep = "\t",
-  skip = 1
+rownames(estimated_proportions) <- NULL
+
+true_proportions <- read.table(
+  "true_proportions_2000.txt",
+  sep = "\t"
 )
 
-colnames(pseudo_bulk2) <- headers2
+names(true_proportions) <- c(
+  "cell_type",
+  "true_proportion"
+)
 
-View(pseudo_bulk)
-View(pseudo_bulk1)
-View(pseudo_bulk2)
+estimated_proportions
+true_proportions
+
+match(
+  estimated_proportions$cell_types,
+  true_proportions$cell_type
+)
+
+estimated_proportions$cell_types
+true_proportions$cell_type
+
+true_proportions <- true_proportions[match(
+  estimated_proportions$cell_types,
+  true_proportions$cell_type
+), ]
+
+cbind.data.frame(
+  estimated_proportions,
+  true_proportions = true_proportions$true_proportion
+)
