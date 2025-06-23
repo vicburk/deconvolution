@@ -175,9 +175,12 @@ cython_debug/
 
 # Project
 matrix_files/
-output_*/
+*output*/
 processed_data/*
 *.h5ad
 *.rds
 gene_expression.txt
-scRNA_combined*
+scRNA*
+true_proportions*
+pseudobulk*
+lazygit*
