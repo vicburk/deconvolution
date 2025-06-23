@@ -223,29 +223,43 @@ save_matrix <- function(
   }
   close(con)
   if (pseudobulk == TRUE) {
-    cells <- lapply(
+    inverse <- lapply(
       seq_along(data),
       function(x) {
-        colnames(data[[x]])[-index[[x]]]
+        data[[x]][, -index[[x]]]
       }
     )
+    cells <- lapply(
+      inverse,
+      colnames
+    )
     cells <- unlist(cells)
-    cells <- unique(cells)
-    newdata <- NULL
-    for (i in seq_along(cells)) {
-      tempdata <- NULL
-      for (j in seq_along(data)) {
-        index <- which(colnames(data[[j]]) == cells[i])
-        temp <- data[[j]][, index]
-        cbind(tempdata, temp)
-      }
-      tempdata <- rowSums(tempdata)
-      newdata <- cbind(newdata, tempdata)
-    }
-    colnames(newdata) <- cells
-    pseudo <- newdata/rowSums(newdata)*1e6
+    true_prop <- cells %>%
+      table %>%
+      prop.table
+    pseudo <- lapply(
+      data,
+      rowSums
+    )
+    pseudo <- Reduce(cbind, pseudo)
+    row_names <- rownames(pseudo)
+    pseudo <- rowSums(pseudo)
+    pseudo <- pseudo/sum(pseudo)*1e6
     pseudo <- log2(pseudo + 1)
-    return(pseudo)
+    pseudo <- cbind.data.frame(GeneSymbol = row_names,
+                               pseudo = pseudo)
+    write.table(pseudo,
+                file = paste0("pseudobulk_", downsample_n,".txt"),
+                row.names = FALSE,
+                col.names = TRUE,
+                quote = FALSE,
+                sep = "\t")
+    true_prop <- write.table(true_prop,
+                file = paste0("true_proportions_", downsample_n,".txt"),
+                row.names = FALSE,
+                col.names = FALSE,
+                quote = FALSE,
+                sep = "\t")
   }
 }
 
@@ -267,3 +281,5 @@ save_matrix(
   downsample_n = 2000,
   pseudobulk = TRUE
 )
+
+
