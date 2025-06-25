@@ -151,3 +151,19 @@ save_matrix <- function(
 
 chunk_size <- 500
 save_matrix(downsampled_data, chunk_size)
+
+
+############################################################
+# Healthy Samples Only
+############################################################
+
+inflammatory_skin <- read_rds("26f6625b-e76c-490a-beb1-aea16933cd6d")
+
+inflammatory_skin %>% attributes %>% names
+inflammatory_skin@meta.data %>% names
+
+inflammatory_skin@meta.data$disease %>% unique
+
+inflammatory_skin@meta.data$development_stage %>% unique
+
+inflammatory_skin@meta.data$sample_id %>% unique
