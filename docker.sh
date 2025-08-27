@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Input file with values
-INPUT_FILE="sample_sizes.txt"
+INPUT_FILE="sample_size.txt"
 
 # Check if input file exists
 if [ ! -f "$INPUT_FILE" ]; then
@@ -11,8 +11,12 @@ fi
 
 # Prompt for username and token
 read -p "Enter CibersortX username: " USERNAME
-read -sp "Enter CibersortX token: " TOKEN
+read -p "Enter CibersortX token: " TOKEN
 echo # new line after token input
+
+# Export variables so they are available to the parallel command
+export USERNAME
+export TOKEN
 
 if ! command -v parallel &>/dev/null; then
   echo "parallel is not installed, installing..."
@@ -28,4 +32,15 @@ if ! command -v parallel &>/dev/null; then
   fi
 fi
 
-parallel --jobs 4 "mkdir -p /home/vibu/deconvolution/output_{}; docker run -v /home/vibu/deconvolution:/src/data -v /home/vibu/deconvolution/output_{}:/src/outdir cibersortx/fractions --username $USERNAME --token $TOKEN --single_cell TRUE --refsample scRNA_combined_{}.txt --mixture gene_expression.txt --fraction 0 --rmbatchSmode TRUE" <"$INPUT_FILE"
+parallel --jobs 4 \
+  "mkdir -p $HOME/deconvolution/pseudo_output_{}; \
+  docker run \
+  -v $HOME/deconvolution:/src/data \
+  -v $HOME/deconvolution/pseudo_output_{}:/src/outdir cibersortx/fractions \
+  --username \"$USERNAME\" \
+  --token \"$TOKEN\" \
+  --single_cell TRUE \
+  --refsample scRNA_combined_{}.txt \
+  --mixture pseudobulk_scRNA_combined_{}.txt \
+  --perm 100" \
+  <"$INPUT_FILE"

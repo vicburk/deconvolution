@@ -152,18 +152,36 @@ save_matrix <- function(
 chunk_size <- 500
 save_matrix(downsampled_data, chunk_size)
 
+############################################################
+# Adult Samples Only
+############################################################
+
+adult_skin <- read_rds("26f6625b-e76c-490a-beb1-aea16933cd6d")
+
+adult_skin %>% attributes %>% names
+adult_skin@meta.data %>% names
+
+adult_skin@meta.data$disease %>% unique
+
+adult_skin@meta.data$development_stage %>% unique
+
+adult_skin@meta.data$sample_id %>% unique
 
 ############################################################
-# Healthy Samples Only
+# Adult and Infant Samples
 ############################################################
 
-inflammatory_skin <- read_rds("26f6625b-e76c-490a-beb1-aea16933cd6d")
+infantAdult_skin <- read_rds("231218_A1_V3_harmony_BBKNN_integrated_fetal_adult-portal")
 
-inflammatory_skin %>% attributes %>% names
-inflammatory_skin@meta.data %>% names
+infantAdult_skin %>% attributes %>% names
+infantAdult_skin@assays$RNA
+infantAdult_skin@meta.data %>% names
 
-inflammatory_skin@meta.data$disease %>% unique
+infantAdult_skin@meta.data$stage %>% unique
 
-inflammatory_skin@meta.data$development_stage %>% unique
+infantAdult_skin@meta.data$sample_id %>% unique
 
-inflammatory_skin@meta.data$sample_id %>% unique
+infantAdult_skin <- clean_data(infantAdult_skin)
+infantAdult_skin$cell_type
+
+# Cell types aren't labeled for this dataset.

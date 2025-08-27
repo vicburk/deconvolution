@@ -1,5 +1,7 @@
+library(MASS)
 library(Seurat)
 library(dplyr)
+library(nnls)
 # BiocManager::install("EnsDb.Hsapiens.v79")
 # 1. Convert from ensembl.gene to gene.symbol
 library(EnsDb.Hsapiens.v79)
@@ -127,13 +129,6 @@ rn <- lapply(renamed_data, rownames)
 all(sapply(rn, identical, rn[[1]]))
 
 gc()
-
-single_cell_proportions <- lapply(
-  renamed_data,
-  function(i) {
-    prop.table(table(colnames(i)))
-  }
-)
 
 # Downsampling
 
@@ -272,13 +267,10 @@ resample_to_proportions <- function(data, target_props, column = NULL, seed = NU
 
 save_matrix <- function(
   data,
-  file,
-  chunk_size,
   downsample_n,
   pseudobulk = FALSE,
-  target_props
+  pseudo_n = 3
 ) {
-  con <- file(file, "w")
   index <- downsample(data, downsample_n)
   col_names <- lapply(
     seq_along(data),
@@ -287,46 +279,20 @@ save_matrix <- function(
     }
   )
   col_names <- unlist(col_names)
-  col_names <- c("GeneSymbol", col_names)
-  col_names <- col_names %>% as.matrix() %>% t()
-  write.table(
-    col_names,
-    con,
-    row.names = FALSE,
-    col.names = FALSE,
-    append = TRUE,
-    quote = FALSE,
-    sep = "\t"
-  )
-  d <- lapply(data, rownames)
-  check <- all(sapply(d, identical, d[[1]]))
-  if (check == FALSE) { 
-    stop("Row names are not equal")
-  }
-  n <- nrow(data[[1]])
-  for (i in seq(1, n, by = chunk_size)) {
-    end_row <-  min(i + chunk_size - 1, n)
-    dense_chunk <- NULL
+  reference_matrix <- NULL
+  for (i in seq_along(unique(col_names))) {
+    cell_type <- unique(col_names)[i]
+    data_by_cell_type <- 0
     for (j in seq_along(data)) {
-      dense_chunk[[j]] <- as.matrix(
-        data[[j]][i:end_row,
-        index[[j]],
-        drop = FALSE]
-      )
+      df <- data[[j]][, colnames(data[[j]]) == cell_type]
+      df <- rowSums(df)
+      data_by_cell_type <- data_by_cell_type + df
     }
-    dense_chunk <- Reduce(cbind, dense_chunk)
-    # Convert one row at a time
-    dense_chunk <- cbind.data.frame(GeneSymbol = rownames(data[[1]])[i:end_row],
-                                    dense_chunk)
-    write.table(dense_chunk,
-                con,
-                row.names = FALSE,
-                col.names = FALSE,
-                append = TRUE,
-                quote = FALSE,
-                sep = "\t")
+    data_by_cell_type <- data_by_cell_type/sum(data_by_cell_type)*1e6
+    data_by_cell_type <- log2(data_by_cell_type + 1)
+    reference_matrix <- cbind(reference_matrix, data_by_cell_type)
   }
-  close(con)
+  colnames(reference_matrix) <- unique(col_names)
   if (pseudobulk == TRUE) {
     inverse <- lapply(
       seq_along(data),
@@ -347,16 +313,22 @@ save_matrix <- function(
     scramble <- sample(
       seq_len(ncells),
     )
-    pseudo_n <- nrow(target_props)
     group <- scramble %% pseudo_n
     group <- group + 1
     cells_by_group <- split(cells, group)
+    target_prop <- cbind(
+      "keratinocyte" = c(0.85, 0.6, 0.8),
+      "fibroblast" = c(0.05, 0.2, 0.1),
+      "endothelial cell" = c(0.05, 0.1, 0.01),
+      "smooth muscle cell" = c(0, 0, 0),
+      "cell of skeletal muscle" = c(0, 0, 0)
+    )
     cell_group_index <- lapply(
       seq_along(cells_by_group),
       function(x) {
         resample_to_proportions(
           cells_by_group[[x]],
-          target_props = target_props[x, ],
+          target_props = target_prop[x, ],
           column = "cells"
         )
       }
@@ -405,10 +377,6 @@ save_matrix <- function(
       cbind,
       pseudo
     )
-    pseudo <- cbind.data.frame(
-      GeneSymbol = rownames(pseudo),
-      pseudo
-    )
     true_prop <- lapply(
       seq_along(cell_group_index),
       function(x) {
@@ -419,177 +387,278 @@ save_matrix <- function(
       cbind,
       true_prop
     )
-    write.table(pseudo,
-                file = paste0("pseudobulk_", file),
-                row.names = FALSE,
-                col.names = TRUE,
-                quote = FALSE,
-                sep = "\t")
-    true_prop <- write.table(true_prop,
-                file = paste0("true_proportions_", file),
-                row.names = TRUE,
-                col.names = FALSE,
-                quote = FALSE,
-                sep = "\t")
-  }
-}
-
-target_props <- cbind(
-      "keratinocyte" = c(0.85, 0.6, 0.5),
-      "fibroblast" = c(0.05, 0.2, 0.1),
-      "endothelial cell" = c(0.05, 0.1, 0.01),
-      "smooth muscle cell" = c(0, 0, 0),
-      "cell of skeletal muscle" = c(0, 0, 0)
+    return(
+      list(
+        reference_matrix = reference_matrix,
+        pseudo = pseudo,
+        true_prop = true_prop
+      )
     )
-
-sample_sizes <- scan("sample_size.txt")
-
-for (i in seq_along(sample_sizes)) {
-  save_matrix(
-    data = renamed_data,
-    file = paste0("scRNA_combined_", sample_sizes[i], ".txt"),
-    chunk_size = 500,
-    downsample_n = sample_sizes[i],
-    pseudobulk = TRUE,
-    target_props = target_props
-  )
+  }
+  return(reference_matrix)
 }
 
-save_matrix(
+#
+
+processed_data <- save_matrix(
   data = renamed_data,
-  file = "scRNA_combined_2000.txt",
-  chunk_size = 500,
-  downsample_n = 2000,
-  pseudobulk = TRUE,
-  target_props = target_props
-)
-
-target_props_list <- list(
-  target_props[, 1:3],
-  target_props[, 1:3],
-  target_props
-)
-
-lapply(
-  seq_along(renamed_data),
-  function(x) {
-    save_matrix(
-      data = renamed_data[x],
-      file = paste0("scRNA_combined_", names(renamed_data)[x], "_2000.txt"),
-      chunk_size = 500,
-      downsample_n = 2000,
-      pseudobulk = TRUE,
-      target_props = target_props_list[[x]]
-    )
-  }
-)
-
-##############################
-### Without 5c9ab5a5-04a9-4282-9320-3b4d7b95131c
-##############################
-
-counts1 <- list()
-for (i in seq_along(counts)) {
-  if (names(counts)[i] != "5c9ab5a5-04a9-4282-9320-3b4d7b95131c") {
-    counts1[names(counts)[i]] <- list(counts[[i]])
-  } else {
-    next
-  }
-}
-
-remove_rename1 <- list()
-for (i in seq_along(remove_rename)) {
-  if (remove_rename[[i]]$name != "5c9ab5a5-04a9-4282-9320-3b4d7b95131c") {
-    remove_rename1[[i]] <- remove_rename[[i]]
-  } else {
-    next
-  }
-}
-
-inter_sect1 <- get_intersect(counts1, type = "row")
-
-reordered_intersect1 <- lapply(
-  seq_along(counts1),
-  function(x) {
-    extract_and_order(
-      counts1[[x]],
-      inter_sect1,
-      type = "row"
-    )
-  }
-)
-
-names(reordered_intersect1) <- names(counts1)
-
-renamed_data1 <- rename_cell_types(reordered_intersect1, remove_rename1)
-
-# Check if all rownames are equal
-rn <- lapply(renamed_data1, rownames)
-all(sapply(rn, identical, rn[[1]]))
-
-gc()
-
-save_matrix(
-  data = renamed_data1,
-  file = "scRNA_combined1_2000.txt",
-  chunk_size = 500,
-  downsample_n = 2000,
-  pseudobulk = TRUE,
-  target_props = target_props[, 1:3]
-)
-
-#######################################
-### Without 26f6625b-e76c-490a-beb1-aea16933cd6d
-#######################################
-
-counts2 <- list()
-for (i in seq_along(counts)) {
-  if (names(counts)[i] != "26f6625b-e76c-490a-beb1-aea16933cd6d") {
-    counts2[names(counts)[i]] <- list(counts[[i]])
-  } else {
-    next
-  }
-}
-
-remove_rename2 <- list()
-k <- 1
-for (i in seq_along(remove_rename)) {
-  if (remove_rename[[i]]$name != "26f6625b-e76c-490a-beb1-aea16933cd6d") {
-    remove_rename2[[k]] <- remove_rename[[i]]
-    k <- k + 1
-  } else {
-    next
-  }
-}
-
-inter_sect2 <- get_intersect(counts2, type = "row")
-
-reordered_intersect2 <- lapply(
-  seq_along(counts2),
-  function(x) {
-    extract_and_order(
-      counts2[[x]],
-      inter_sect2,
-      type = "row"
-    )
-  }
-)
-
-names(reordered_intersect2) <- names(counts2)
-
-renamed_data2 <- rename_cell_types(reordered_intersect2, remove_rename2)
-
-# Check if all rownames are equal
-rn <- lapply(renamed_data2, rownames)
-all(sapply(rn, identical, rn[[1]]))
-
-gc()
-
-save_matrix(
-  data = renamed_data2,
-  file = "scRNA_combined2_2000.txt",
-  chunk_size = 500,
   downsample_n = 2000,
   pseudobulk = TRUE
-  target_props = target_props
 )
+
+data <- processed_data$reference_matrix
+pseudo <- processed_data$pseudo
+true_prop <- processed_data$true_prop
+true_prop <- true_prop[colnames(data), ]
+
+########################################
+# Load bulk data
+########################################
+
+bulk <- read.table(
+  "gene_expression.txt",
+  header = TRUE,
+  sep = "\t"
+)
+rownames(bulk) <- bulk[, 1]
+bulk <- bulk[, -1]
+bulk <- as.matrix(bulk)
+
+bulk <- bulk[match(rownames(data), rownames(bulk)), ]
+
+#######################################
+# Load signature matrix from CIBERSORT
+#######################################
+
+file <- "pseudo_output_2000/CIBERSORTx_cell_type_sourceGEP.txt"
+
+cibersort <- read.table(
+  file,
+  header = TRUE,
+  sep = "\t"
+)
+rownames(cibersort) <- cibersort[, 1]
+cibersort <- cibersort[, -1]
+cibersort <- as.matrix(cibersort)
+
+reorder <- match(rownames(data), rownames(cibersort))
+
+cibersort <- cibersort[reorder, ]
+
+cibersort <- na.omit(cibersort)
+
+pseudo_0 <- pseudo[rownames(cibersort), ]
+bulk_0 <- bulk[rownames(cibersort), ]
+
+##################################
+# NNLS Deconvolution
+##################################
+
+# Manually calculated signature matrix
+
+# Pseudo Bulk Deconvolution
+
+custom_deconvolution <- function(signature, bulk, method, cell_types = NULL, seed = 1) {
+  if (!is.null(cell_types)) {
+    colnames(signature) <- gsub("\\.", " ", colnames(signature))
+    signature <- signature[, cell_types]
+  }
+  if (!any(c("NNLS","lasso") %in% method)) {
+    stop("method must be NNLS or lasso")
+  }
+
+  if (method == "NNLS") {
+    props <- lapply(
+      seq_len(ncol(bulk)),
+      function(i) {
+        model <- nnls(signature, bulk[, i])
+        props <- coef(model)
+        props <- props/sum(props)
+        return(props)
+      }
+    )
+    props <- Reduce(
+      cbind,
+      props
+    )
+    rownames(props) <- colnames(signature)
+  }
+
+  if (method == "lasso") {
+    set.seed(seed)
+    props <- lapply(
+      seq_len(ncol(bulk)),
+      function(i) {
+        model <- cv.glmnet(signature, bulk[, i], alpha = 1, lower.limit = 0, intercept = FALSE)
+        props <- coef(model)
+        props <- props/sum(props)
+        return(props)
+      }
+    )
+    props <- Reduce(
+      cbind,
+      props
+    )
+  }
+  return(props)
+}
+
+# props_pseudo_nnls
+ppn <- custom_deconvolution(signature = data, bulk = pseudo, method = "NNLS")
+
+# Bulk Deconvolution
+
+# props_bulk_nnls
+
+pbn <- custom_deconvolution(signature = data, bulk = bulk, method = "NNLS")
+
+# CIBERSORT signature matrix
+
+# Pseudo Bulk Deconvolution
+
+# props_pseudo_nnls_cibersort
+
+ppnc <- custom_deconvolution(signature = cibersort, bulk = pseudo_0, method = "NNLS")
+
+# Bulk Deconvolution
+
+# props_bulk_nnls_cibersort
+
+pbnc <- custom_deconvolution(signature = cibersort, bulk = bulk_0, method = "NNLS")
+
+#################################################
+### Lasso
+#################################################
+
+library(glmnet)
+
+# Manually calculated signature matrix
+
+# Pseudo Bulk Deconvolution
+
+# props_pseudo_lasso
+
+ppl <- custom_deconvolution(signature = data, bulk = pseudo, method = "lasso")
+
+# Bulk Deconvolution
+
+# props_bulk_lasso
+
+pbl <- custom_deconvolution(signature = data, bulk = bulk, method = "lasso")
+
+# CIBERSORT signature matrix
+
+# Pseudo Bulk Deconvolution
+
+# props_pseudo_lasso_cibersort
+
+pplc <- custom_deconvolution(signature = cibersort, bulk = pseudo_0, method = "lasso")
+
+# Bulk Deconvolution
+
+# props_bulk_lasso_cibersort
+
+pblc <- custom_deconvolution(signature = cibersort, bulk = bulk_0, method = "lasso")
+
+########################################
+### No Fibroblast
+########################################
+
+cells <- colnames(data)
+
+no_fib <- cells[cells != "fibroblast"]
+
+##################################
+# NNLS Deconvolution
+##################################
+
+# Manually calculated signature matrix
+
+# Pseudo Bulk Deconvolution
+
+# props_pseudo_nnls_no_fib
+
+ppn_no_fib <- custom_deconvolution(signature = data, bulk = pseudo, method = "NNLS", cell_types = no_fib)
+
+# Bulk Deconvolution
+
+# props_bulk_nnls_no_fib
+
+pbn_no_fib <- custom_deconvolution(signature = data, bulk = bulk, method = "NNLS", cell_types = no_fib)
+
+# CIBERSORT signature matrix
+
+# Pseudo Bulk Deconvolution
+
+# props_pseudo_nnls_cibersort_no_fib
+
+ppnc_no_fib <- custom_deconvolution(signature = cibersort, bulk = pseudo_0, method = "NNLS", cell_types = no_fib)
+
+# Bulk Deconvolution
+
+# props_bulk_nnls_cibersort_no_fib
+
+pbnc_no_fib <- custom_deconvolution(signature = cibersort, bulk = bulk_0, method = "NNLS", cell_types = no_fib)
+
+#################################################
+### Lasso
+#################################################
+
+# Manually calculated signature matrix
+
+# Pseudo Bulk Deconvolution
+
+# props_pseudo_lasso_no_fib
+
+ppl_no_fib <- custom_deconvolution(signature = data, bulk = pseudo, method = "lasso", cell_types = no_fib)
+
+# Bulk Deconvolution
+
+# props_bulk_lasso_no_fib
+
+pbl_no_fib <- custom_deconvolution(signature = data, bulk = bulk, method = "lasso", cell_types = no_fib)
+
+# CIBERSORT signature matrix
+
+# Pseudo Bulk Deconvolution
+
+# props_pseudo_lasso_cibersort_no_fib
+
+pplc_no_fib <- custom_deconvolution(signature = cibersort, bulk = pseudo_0, method = "lasso", cell_types = no_fib)
+
+# Bulk Deconvolution
+
+# props_bulk_lasso_cibersort_no_fib
+
+pblc_no_fib <- custom_deconvolution(signature = cibersort, bulk = bulk_0, method = "lasso", cell_types = no_fib)
+
+########################################
+### Clustering
+########################################
+
+distance <- 1 - cor(data, method = "spearman")
+distance <- as.dist(distance)
+
+hc <- hclust(distance, method = "complete")
+
+plot(hc)
+
+################
+
+dist_cibersort <- 1 - cor(cibersort, method = "spearman")
+dist_cibersort <- as.dist(dist_cibersort)
+
+hc_cibersort <- hclust(dist_cibersort, method = "complete")
+
+plot(hc_cibersort)
+
+##################################
+### No Fibroblast, Pericyte, melanocyte, cytotoxic T cell, or Endothelial
+##################################
+
+exclude <- c("fibroblast", "pericyte", "endothelial cell")
+no_fpe <- cells[!(cells %in% exclude)]
+
+ppn_no_fpe <- custom_deconvolution(signature = data, bulk = pseudo, method = "NNLS", cell_types = no_fpe)
+
+pbn_no_fpe <- custom_deconvolution(signature = data, bulk = bulk, method = "NNLS", cell_types = no_fpe)
