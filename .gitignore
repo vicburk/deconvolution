@@ -173,6 +173,10 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# R
+.Rhistory
+.RData
+
 # Project
 matrix_files/
 *output*/
@@ -184,3 +188,5 @@ scRNA*
 true_proportions*
 pseudobulk*
 lazygit*
+*png
+*deconvolution.xlsx

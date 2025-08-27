@@ -1,0 +1,83 @@
+music_prop                package:MuSiC                R Documentation
+
+_M_u_S_i_C _D_e_c_o_n_v_o_l_u_t_i_o_n
+
+_D_e_s_c_r_i_p_t_i_o_n:
+
+     This function is to calculate the MuSiC deconvolution proportions
+
+_U_s_a_g_e:
+
+     music_prop(
+       bulk.mtx,
+       sc.sce,
+       markers = NULL,
+       clusters,
+       samples,
+       select.ct = NULL,
+       cell_size = NULL,
+       ct.cov = FALSE,
+       verbose = TRUE,
+       iter.max = 1000,
+       nu = 1e-04,
+       eps = 0.01,
+       centered = FALSE,
+       normalize = FALSE,
+       ...
+     )
+     
+_A_r_g_u_m_e_n_t_s:
+
+bulk.mtx: matrix of expression for bulk data
+
+  sc.sce: SingleCellExperiment for single cell data
+
+ markers: vector or list of gene names, default as NULL. If NULL, use
+          all genes that provided by both bulk and single cell dataset.
+
+clusters: character, the colData of single cell dataset used as
+          clusters;
+
+ samples: character,the colData of single cell dataset used as samples;
+
+select.ct: vector of cell types, default as NULL. If NULL, then use all
+          cell types provided by single cell dataset;
+
+cell_size: data.frame of cell sizes. 1st column contains the names of
+          cell types, 2nd column has the cell sizes per cell type.
+          Default as NULL. If NULL, then estimate cell size from data;
+
+  ct.cov: logical. If TRUE, use the covariance across cell types;
+
+ verbose: logical, default as TRUE.
+
+iter.max: numeric, maximum iteration number
+
+      nu: regulation parameter, take care of weight when taking
+          reciprocal
+
+     eps: Threshold of convergence
+
+centered: logic, subtract avg of Y and D
+
+normalize: logic, divide Y and D by their standard deviation
+
+_V_a_l_u_e:
+
+     a list with elements:
+
+        • Estimates of MuSiC;
+
+        • Estimates of NNLS;
+
+        • Weight of MuSiC;
+
+        • r.squared of MuSiC;
+
+        • Variance of MuSiC estimates.
+
+_S_e_e _A_l_s_o:
+
+     ‘music_basis’
+
+
